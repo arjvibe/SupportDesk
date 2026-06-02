@@ -1,0 +1,42 @@
+{
+  "name": "supportdesk-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "db:generate": "drizzle-kit generate",
+    "db:push": "drizzle-kit push",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:seed": "tsx src/db/seed.ts",
+    "clean-db": "tsx src/db/clean-db.ts",
+    "push-db": "drizzle-kit push",
+    "seed-db": "tsx src/db/seed.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1055.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "drizzle-orm": "^0.30.10",
+    "express": "^4.19.2",
+    "jose": "^5.2.4",
+    "multer": "^2.1.1",
+    "nodemailer": "^8.0.9",
+    "postgres": "^3.4.4"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/multer": "^2.1.0",
+    "@types/node": "^20.12.7",
+    "@types/nodemailer": "^8.0.0",
+    "drizzle-kit": "^0.21.4",
+    "tsx": "^4.7.2",
+    "typescript": "^5.4.5"
+  }
+}

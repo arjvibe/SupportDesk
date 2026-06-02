@@ -1,0 +1,48 @@
+{
+  "version": "6",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1779863200975,
+      "tag": "0000_public_senator_kelly",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1779867296153,
+      "tag": "0001_aspiring_christian_walker",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1779952184915,
+      "tag": "0002_young_the_executioner",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1780050781698,
+      "tag": "0003_clear_wind_dancer",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1780295708156,
+      "tag": "0004_last_slayback",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1780300000000,
+      "tag": "0005_email_to_ticket",
+      "breakpoints": true
+    }
+  ]
+}

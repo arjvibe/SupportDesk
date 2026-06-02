@@ -1,0 +1,51 @@
+# Dependency directories (anywhere in workspace)
+node_modules/
+
+# Local configuration / Environment files (contains credentials and secrets)
+.env
+.env.local
+.env.*.local
+*.env
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build outputs
+dist/
+build/
+out/
+.cache/
+*.tsbuildinfo
+
+# Local tenant uploads / attachments (never check customer files or brand logos into VCS)
+backend/uploads/
+uploads/
+
+# Drizzle migrations cache metadata (drizzle pushes directly to DB, schemas are check-in source of truth)
+.drizzle/
+
+# Diagnostic / debug scratch scripts
+backend/src/query_tickets.ts
+backend/src/query_sla.ts
+
+# Editor & System Files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Untouched reference codebase folder
+ticket-support-system/
+

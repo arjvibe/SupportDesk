@@ -1,0 +1,59 @@
+# SupportDesk AI Agent Rules & Core Directives
+
+Always refer to this document before planning, writing code, running commands, or structuring architecture.
+
+---
+
+## 1. No MVP Solutions - Production-Ready Standard
+* **Production Quality**: Do not write shortcut or "MVP" code. All implementations must be robust, complete, scalable, and deployable.
+* **Type Safety**: Strictly define TypeScript interfaces and types. Avoid `any` castings unless absolutely necessary.
+* **Error Handling**: Every endpoint, database query, and asynchronous operation must have explicit error boundaries, structured error responses, and detailed console logging.
+* **Validation**: Always validate incoming request payloads on the backend (types, formats, constraints) and frontend before mutating state.
+* **Build Integrity**: Ensure `npm run build` compiles with **zero compiler warnings or errors** across both `backend/` and `frontend/` workspaces after any change.
+
+---
+
+## 2. Strict Tenant-Level Data & Access Compliance
+* **Subdomain Scoped**: Every request context must be resolved to a specific organization (`orgId` / `tenantId`) via the subdomain context (`resolveTenant` middleware).
+* **Isolation of Storage**:
+  - All file uploads (logos, ticket attachments) MUST be partitioned by organization ID in subdirectories (e.g. `uploads/[orgId]/[folder]/`).
+  - No two organizations should ever share a directory space.
+* **Isolation of Database**:
+  - Every SQL query and update statement must explicitly filter by the active tenant ID (`eq(table.orgId, req.user.orgId)` or equivalent).
+  - Verify access rights and roles (`admin`, `agent`, `client_user`) to prevent cross-tenant leakage.
+* **Pre-Authentication Safety**: Pre-auth endpoints (such as retrieving logos/names for the sign-in screen) must only return public branding assets (name, colors, logo url) matching the validated subdomain host, and must never expose internal user/settings metadata.
+
+---
+
+## 3. Component-Based Architecture & Clean Abstractions
+* **Provider Pattern**: Decouple infrastructure concerns from application routing. Use abstraction interfaces for external integrations (e.g., mail dispatchers, SMS alerts, and storage providers).
+* **Storage Provider Interface**:
+  - Implement a `StorageService` interface.
+  - Implement a `LocalStorageProvider` for development.
+  - Implement an `S3StorageProvider` (AWS SDK S3 compatible) for production/staging environments.
+  - Use relative pathing combined with dynamic configuration prefixes for easy CDN routing.
+
+---
+
+## 4. Design Aesthetics & Visual Harmony
+* **Premium UX**: Design interfaces to look polished, modern, and state-of-the-art (inspired by premium SaaS platforms like Freshdesk/Zendesk).
+* **Design System**: Use defined `@theme` custom properties in Tailwind v4 and dynamic CSS properties (`--brand-primary`, `--brand-secondary`) inside React components. Avoid plain fallback colors.
+* **Interactive Enhancements**: Add subtle hover actions, smooth transition animations, clean layouts, and Outfit typography.
+
+---
+
+## 5. Structured Code Documentation
+* **TSDoc/JSDoc Standard**: All exported functions, routes, middleware, hooks, and context providers MUST include JSDoc comments detailing:
+  - Purpose of the component or method.
+  - Parameter types, descriptions, and optional flags.
+  - Return values and types.
+* **Explain the "Why"**: Code comments should not just state what the code does, but explain *why* it was designed that way (especially around security checks, tenant scopes, and concurrency handling).
+* **Maintain Cleanliness**: Avoid redundant, stale, or commented-out blocks of code in production branches. Keep comments concise, grammatical, and updated.
+
+---
+
+## 6. Unit Testing & Verification
+* **Test Critical Logic**: Write automated unit tests for all core business utilities and critical services (e.g. SLA calendar calculation, ticket auto-routing rules, and JWT signing/validation).
+* **Test Isolation**: Ensure unit tests run in isolation with mock tenant databases or in-memory contexts. Never leak test artifacts or connect to real cloud endpoints during test execution.
+* **Coverage**: For new features, include matching unit tests (e.g., in a `.test.ts` or `.spec.ts` file) using modern runners like Vitest or Jest. Ensure tests check success paths, failure scenarios, and boundary limits.
+
