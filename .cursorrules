@@ -57,3 +57,29 @@ Always refer to this document before planning, writing code, running commands, o
 * **Test Isolation**: Ensure unit tests run in isolation with mock tenant databases or in-memory contexts. Never leak test artifacts or connect to real cloud endpoints during test execution.
 * **Coverage**: For new features, include matching unit tests (e.g., in a `.test.ts` or `.spec.ts` file) using modern runners like Vitest or Jest. Ensure tests check success paths, failure scenarios, and boundary limits.
 
+---
+
+## 7. Modular Front-End Architecture Pattern
+* **Feature Isolation (`src/features/`)**:
+  - Partition the frontend features folder into `tenant/` (customer-facing SaaS features) and `platform/` (system operator dashboard scopes).
+  - Every new feature directory must follow this exact architecture:
+    ```
+    features/[tenant|platform]/[feature_name]/
+    ├── types/           # Explicit types and interfaces
+    │   ├── [entity].ts
+    │   └── index.ts     # Barrel export
+    ├── api/             # API client requests using central apiClient
+    │   └── [feature_name]Api.ts
+    ├── hooks/           # Custom React Query queries and mutations
+    │   └── use[FeatureName].ts
+    ├── components/      # Reusable UI components and sub-forms
+    │   └── [ComponentName].tsx
+    └── index.ts         # Feature barrel index exporting types, hooks, components
+    ```
+* **Strict Type Decoupling**: Keep type and interface definitions strictly inside the feature's `types/` directory. NEVER define model types inline within components, hooks, or API files.
+* **Consolidated Authentication Hook**: Always use the central hook `@/features/tenant/auth`. Never duplicate authorization checks or session hook definitions.
+* **Resilient Session Queries**: Handlers checking active sessions (e.g. `/auth/session`) must intercept `401 Unauthorized` or `403 Forbidden` responses and return an unauthenticated session object `{ user: null, org: null }` instead of throwing query errors to prevent rendering freezes.
+* **Layout and Spacing Nesting Rules**:
+  - Components intended to be rendered inside layout grids, parent content areas (like the Settings Hub pane), or overlays/modals MUST NOT include their own outer margins, double paddings (e.g., `py-12 px-6 md:px-12`), or wrapper wrappers (like `<PageContainer>`). Padding must be managed by the parent layout.
+
+
