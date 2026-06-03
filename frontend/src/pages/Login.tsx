@@ -1,36 +1,57 @@
-import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 import { useQuery } from "@tanstack/react-query";
-import { useAuth } from "../hooks/useAuth";
-import { getActiveSubdomain, getApiBase, resolveAssetUrl } from "../utils/api";
+import { useAuth } from "@/features/tenant/auth";
+import { getActiveSubdomain, resolveAssetUrl } from "@/utils/api";
+import { apiClient } from "@/api/client";
+import { queryKeys } from "@/lib/queryKeys";
+import {
+  Form,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormControl,
+  FormError,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+
+const loginSchema = z.object({
+  email: z.string().min(1, "Email is required").email("Invalid email format"),
+  password: z.string().min(1, "Password is required"),
+});
+
+type LoginValues = z.infer<typeof loginSchema>;
 
 export default function Login() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const { login, isLoggingIn } = useAuth();
-
+  const { login, isLoggingIn, loginError } = useAuth();
   const activeSubdomain = getActiveSubdomain();
+
   const { data: workspaceData } = useQuery<any>({
-    queryKey: ["public_workspace", activeSubdomain],
+    queryKey: queryKeys.auth.workspace(activeSubdomain),
     queryFn: async () => {
       if (!activeSubdomain) return null;
-      const res = await fetch(`${getApiBase()}/auth/workspace`, { credentials: "include" });
-      if (!res.ok) return null;
-      return res.json();
+      return apiClient.get<any>("/auth/workspace");
     },
     enabled: !!activeSubdomain,
   });
 
   const org = workspaceData?.org || null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
+  const form = useForm<LoginValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+  });
 
+  const handleSubmit = async (values: LoginValues) => {
     try {
-      await login({ email, password });
-    } catch (err: any) {
-      setError(err.message || "Invalid credentials");
+      await login(values);
+    } catch (err) {
+      console.error("Login attempt failed", err);
     }
   };
 
@@ -51,49 +72,51 @@ export default function Login() {
         </div>
 
         <div className="bg-canvas ring-1 ring-black/10 rounded-2xl p-8 shadow-sm">
-          {error && (
+          {loginError && (
             <div className="mb-6 p-4 bg-danger/5 ring-1 ring-danger/20 rounded-xl text-xs text-danger font-medium leading-relaxed">
-              {error}
+              {loginError}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <label className="block">
-              <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground block mb-2">
-                Email Address
-              </span>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@company.com"
-                className="w-full bg-surface ring-1 ring-black/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-black/20 focus:bg-canvas transition-all placeholder:text-muted-foreground/50"
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email Address</FormLabel>
+                    <FormControl>
+                      <Input type="email" placeholder="you@company.com" {...field} />
+                    </FormControl>
+                    <FormError />
+                  </FormItem>
+                )}
               />
-            </label>
 
-            <label className="block">
-              <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground block mb-2">
-                Password
-              </span>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-surface ring-1 ring-black/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-black/20 focus:bg-canvas transition-all placeholder:text-muted-foreground/50"
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <Input type="password" placeholder="••••••••" {...field} />
+                    </FormControl>
+                    <FormError />
+                  </FormItem>
+                )}
               />
-            </label>
 
-            <button
-              type="submit"
-              disabled={isLoggingIn}
-              className="w-full bg-brand-primary text-brand-secondary py-3 px-4 rounded-lg text-sm font-medium transition-transform active:scale-95 disabled:opacity-50 disabled:pointer-events-none mt-2"
-            >
-              {isLoggingIn ? "Signing in…" : "Sign In"}
-            </button>
-          </form>
+              <Button
+                type="submit"
+                className="w-full mt-2"
+                isLoading={isLoggingIn}
+              >
+                Sign In
+              </Button>
+            </form>
+          </Form>
         </div>
 
         <p className="text-center text-[10px] text-muted-foreground mt-8 leading-relaxed max-w-[28ch] mx-auto font-serif italic">

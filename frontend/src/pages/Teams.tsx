@@ -1,58 +1,20 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "../hooks/useAuth";
-import { getApiBase } from "../utils/api";
 import { Plus, ArrowLeft, ArrowRight, X, ShieldAlert, Trash2, UserPlus, Search } from "lucide-react";
+import { useAuth } from "@/features/tenant/auth";
+import {
+  useTeamsList,
+  useAvailableAgents,
+  useTeamMembers,
+  useCreateTeam,
+  useAssignTeamAgent,
+  useRemoveTeamAgent,
+  useToggleAgentLead,
+  TeamForm,
+  AssignAgentDialog,
+} from "@/features/tenant/teams";
 
-type TeamLead = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  initials: string;
-};
-
-type SupportTeam = {
-  id: string;
-  name: string;
-  description: string | null;
-  createdAt: string;
-  lead: TeamLead | null;
-  agentCount: number;
-};
-
-type TeamAgent = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  role: "admin" | "agent";
-  jobTitle: string | null;
-  initials: string;
-  isLead: boolean;
-};
-
-type StaffMember = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  role: "admin" | "agent";
-  jobTitle: string | null;
-  initials: string;
-  teamCount: number;
-};
-
-const API_BASE = getApiBase();
-
-/**
- * Teams page component.
- * Exposes a dashboard of support teams inside the organization.
- * Permits Admins to create new teams, assign agents, promote agents to team lead,
- * and remove agents from teams. Enables Agents to view team directories.
- */
 export default function Teams() {
   const { user } = useAuth();
-  const queryClient = useQueryClient();
   const isAdmin = user?.role === "admin";
 
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
@@ -61,200 +23,52 @@ export default function Teams() {
   // Modal control states
   const [isNewTeamModalOpen, setIsNewTeamModalOpen] = useState(false);
   const [isAddAgentModalOpen, setIsAddAgentModalOpen] = useState(false);
-
-  // Form states for creating a new support team
-  const [newTeamName, setNewTeamName] = useState("");
-  const [newTeamDescription, setNewTeamDescription] = useState("");
-  const [newTeamError, setNewTeamError] = useState<string | null>(null);
-
-  // Form states for adding an agent to the team
-  const [selectedAgentId, setSelectedAgentId] = useState("");
-  const [assignAsLead, setAssignAsLead] = useState(false);
   const [addAgentError, setAddAgentError] = useState<string | null>(null);
+  const [createTeamError, setCreateTeamError] = useState<string | null>(null);
 
-  // =========================================================================
-  // 1. Data Fetching Queries
-  // =========================================================================
+  // Queries
+  const { data: teamsList = [], isLoading: loadingTeams } = useTeamsList();
+  const { data: staffList = [] } = useAvailableAgents();
+  const { data: teamAgents = [], isLoading: loadingTeamAgents } = useTeamMembers(selectedTeamId);
 
-  // Fetch support teams list
-  const { data: teamsList = [], isLoading: loadingTeams } = useQuery<SupportTeam[]>({
-    queryKey: ["teams"],
-    queryFn: async () => {
-      const res = await fetch(`${API_BASE}/teams`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch support teams");
-      return res.json();
-    },
-  });
+  // Mutations
+  const createTeamMutation = useCreateTeam();
+  const assignAgentMutation = useAssignTeamAgent(selectedTeamId);
+  const removeAgentMutation = useRemoveTeamAgent(selectedTeamId);
+  const toggleLeadMutation = useToggleAgentLead(selectedTeamId);
 
-  // Fetch all staff members in the Org (to compute counters & populate assignments)
-  const { data: staffList = [] } = useQuery<StaffMember[]>({
-    queryKey: ["available_agents"],
-    queryFn: async () => {
-      const res = await fetch(`${API_BASE}/teams/agents/available`, { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
-    },
-  });
-
-  // Fetch agents mapped to the currently selected support team
-  const { data: teamAgents = [], isLoading: loadingTeamAgents } = useQuery<TeamAgent[]>({
-    queryKey: ["teams", selectedTeamId, "agents"],
-    queryFn: async () => {
-      if (!selectedTeamId) return [];
-      const res = await fetch(`${API_BASE}/teams/${selectedTeamId}/agents`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch team members");
-      return res.json();
-    },
-    enabled: !!selectedTeamId,
-  });
-
-  // =========================================================================
-  // 2. Mutation Hooks
-  // =========================================================================
-
-  /**
-   * Mutation hook to register a new support team in the database.
-   * Invalidates the 'teams' query key on success to refresh the grid layout.
-   */
-  const createTeamMutation = useMutation({
-    mutationFn: async (payload: { name: string; description: string }) => {
-      const res = await fetch(`${API_BASE}/teams`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        credentials: "include",
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to create support team");
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["teams"] });
-      setNewTeamName("");
-      setNewTeamDescription("");
-      setNewTeamError(null);
-      setIsNewTeamModalOpen(false);
-    },
-    onError: (err: any) => {
-      setNewTeamError(err.message);
-    },
-  });
-
-  /**
-   * Mutation hook to add an agent mapping to the selected support team.
-   * Invalidates both the team members list and available agents directory (to refresh stats).
-   */
-  const addAgentMutation = useMutation({
-    mutationFn: async (payload: { agentId: string; isLead: boolean }) => {
-      const res = await fetch(`${API_BASE}/teams/${selectedTeamId}/agents`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        credentials: "include",
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to assign agent");
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["teams", selectedTeamId, "agents"] });
-      queryClient.invalidateQueries({ queryKey: ["teams"] }); // update counters in team card
-      queryClient.invalidateQueries({ queryKey: ["available_agents"] }); // update assigned stats
-      setSelectedAgentId("");
-      setAssignAsLead(false);
-      setAddAgentError(null);
-      setIsAddAgentModalOpen(false);
-    },
-    onError: (err: any) => {
-      setAddAgentError(err.message);
-    },
-  });
-
-  /**
-   * Mutation hook to remove an agent from the support team.
-   */
-  const removeAgentMutation = useMutation({
-    mutationFn: async (agentId: string) => {
-      const res = await fetch(`${API_BASE}/teams/${selectedTeamId}/agents/${agentId}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to remove agent");
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["teams", selectedTeamId, "agents"] });
-      queryClient.invalidateQueries({ queryKey: ["teams"] });
-      queryClient.invalidateQueries({ queryKey: ["available_agents"] });
-    },
-  });
-
-  /**
-   * Mutation hook to toggle an agent's leadership status for this support team.
-   */
-  const toggleLeadMutation = useMutation({
-    mutationFn: async ({ agentId, isLead }: { agentId: string; isLead: boolean }) => {
-      const res = await fetch(`${API_BASE}/teams/${selectedTeamId}/agents/${agentId}/lead`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isLead }),
-        credentials: "include",
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to update lead status");
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["teams", selectedTeamId, "agents"] });
-      queryClient.invalidateQueries({ queryKey: ["teams"] });
-    },
-  });
-
-  // =========================================================================
-  // 3. Form Handlers
-  // =========================================================================
-
-  /**
-   * Submits the create team form to the backend mutation.
-   * 
-   * @param e React form submission event
-   */
-  const handleCreateTeam = (e: React.FormEvent) => {
-    e.preventDefault();
-    createTeamMutation.mutate({
-      name: newTeamName,
-      description: newTeamDescription,
+  // Handlers
+  const handleCreateTeamSubmit = (data: { name: string; description: string }) => {
+    setCreateTeamError(null);
+    createTeamMutation.mutate(data, {
+      onSuccess: () => {
+        setIsNewTeamModalOpen(false);
+      },
+      onError: (err: any) => {
+        setCreateTeamError(err.message || "Failed to create team");
+      },
     });
   };
 
-  /**
-   * Submits the assign agent form to the backend mutation.
-   * 
-   * @param e React form submission event
-   */
-  const handleAddAgent = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedAgentId) {
-      setAddAgentError("Please select an agent");
-      return;
-    }
-    addAgentMutation.mutate({
-      agentId: selectedAgentId,
-      isLead: assignAsLead,
+  const handleAssignAgentSubmit = (payload: { agentId: string; isLead: boolean }) => {
+    setAddAgentError(null);
+    assignAgentMutation.mutate(payload, {
+      onSuccess: () => {
+        setIsAddAgentModalOpen(false);
+      },
+      onError: (err: any) => {
+        setAddAgentError(err.message || "Failed to assign agent");
+      },
     });
   };
 
-  // =========================================================================
-  // 4. Client Search & Filtering Logic
-  // =========================================================================
-
+  // Search & Filtering
   const filteredTeams = teamsList.filter((team) =>
     team.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (team.description && team.description.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  // Stats Counters Calculations
+  // Stats Counters
   const totalTeams = teamsList.length;
   const totalStaff = staffList.length;
   const assignedStaff = staffList.filter((st) => st.teamCount > 0).length;
@@ -266,10 +80,6 @@ export default function Teams() {
     (st) => !teamAgents.some((ta) => ta.id === st.id)
   );
 
-  // =========================================================================
-  // Render View (List View vs Drilldown View)
-  // =========================================================================
-
   if (selectedTeamId && selectedTeam) {
     return (
       <div className="w-full px-6 md:px-12 py-12 font-sans text-ink">
@@ -277,7 +87,7 @@ export default function Teams() {
         <div className="mb-8 flex items-center justify-between">
           <button
             onClick={() => setSelectedTeamId(null)}
-            className="flex items-center gap-2 text-xs font-semibold font-mono uppercase tracking-wider text-muted-foreground hover:text-ink transition-colors"
+            className="flex items-center gap-2 text-xs font-semibold font-mono uppercase tracking-wider text-muted-foreground hover:text-ink transition-colors cursor-pointer text-left"
           >
             <ArrowLeft className="size-4" />
             Back to teams
@@ -286,7 +96,7 @@ export default function Teams() {
           {isAdmin && (
             <button
               onClick={() => setIsAddAgentModalOpen(true)}
-              className="bg-brand-primary text-brand-secondary py-2 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 hover:opacity-90 active:scale-95 transition-all shadow-sm"
+              className="bg-brand-primary text-brand-secondary py-2 px-3 rounded-lg text-xs font-semibold flex items-center gap-1.5 hover:opacity-90 active:scale-95 transition-all shadow-sm cursor-pointer"
             >
               <UserPlus className="size-4" />
               Add Agent
@@ -348,7 +158,7 @@ export default function Teams() {
                 Staff members currently triaging and resolving cases assigned to this support unit.
               </p>
             </div>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-black/5">
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-black/5 select-none">
               {teamAgents.length} assigned
             </span>
           </div>
@@ -363,7 +173,7 @@ export default function Teams() {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="border-b border-black/5 text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+                  <tr className="border-b border-black/5 text-[10px] font-mono uppercase tracking-wider text-muted-foreground select-none">
                     <th className="py-3 font-semibold">Agent</th>
                     <th className="py-3 font-semibold">Email</th>
                     <th className="py-3 font-semibold">Job Title</th>
@@ -409,7 +219,7 @@ export default function Teams() {
                         {isAdmin ? (
                           <button
                             onClick={() => toggleLeadMutation.mutate({ agentId: agent.id, isLead: !agent.isLead })}
-                            className={`text-xs font-mono uppercase tracking-widest px-2.5 py-1 rounded border transition-all ${
+                            className={`text-xs font-mono uppercase tracking-widest px-2.5 py-1 rounded border transition-all cursor-pointer ${
                               agent.isLead
                                 ? "bg-brand-primary text-brand-secondary border-brand-primary hover:opacity-90"
                                 : "bg-transparent text-muted-foreground border-black/10 hover:border-black/20 hover:text-ink"
@@ -432,7 +242,7 @@ export default function Teams() {
                                 removeAgentMutation.mutate(agent.id);
                               }
                             }}
-                            className="p-1.5 rounded-md hover:bg-danger/10 hover:text-danger text-muted-foreground transition-all"
+                            className="p-1.5 rounded-md hover:bg-danger/10 hover:text-danger text-muted-foreground transition-all cursor-pointer"
                             title="Remove agent from team"
                             disabled={removeAgentMutation.isPending}
                           >
@@ -449,72 +259,15 @@ export default function Teams() {
         </div>
 
         {/* Add Agent Modal */}
-        {isAddAgentModalOpen && isAdmin && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-canvas border border-black/10 rounded-2xl w-full max-w-md p-6 shadow-xl relative animate-in fade-in zoom-in-95 duration-150">
-              <button
-                onClick={() => setIsAddAgentModalOpen(false)}
-                className="absolute top-4 right-4 text-muted-foreground hover:text-ink transition-colors"
-              >
-                <X className="size-4" />
-              </button>
-              
-              <h2 className="text-lg font-serif mb-2">Add Member to {selectedTeam.name}</h2>
-              <p className="text-xs text-muted-foreground mb-6">
-                Select an internal agent or admin to assign to this support team.
-              </p>
-
-              {addAgentError && (
-                <div className="mb-4 p-3 bg-danger/5 ring-1 ring-danger/15 rounded-lg text-xs text-danger flex items-start gap-2">
-                  <ShieldAlert className="size-4 shrink-0 mt-0.5" />
-                  <span>{addAgentError}</span>
-                </div>
-              )}
-
-              <form onSubmit={handleAddAgent} className="space-y-4">
-                <label className="block text-left">
-                  <span className="text-[9px] font-mono uppercase tracking-widest text-muted-foreground block mb-1">
-                    Select Agent
-                  </span>
-                  <select
-                    value={selectedAgentId}
-                    onChange={(e) => setSelectedAgentId(e.target.value)}
-                    required
-                    className="w-full bg-surface ring-1 ring-black/10 rounded-md px-3 py-2 text-xs focus:outline-none focus:ring-black/20 focus:bg-canvas transition-all"
-                  >
-                    <option value="">Choose Staff Member</option>
-                    {eligibleAgents.map((ag) => (
-                      <option key={ag.id} value={ag.id}>
-                        {ag.firstName} {ag.lastName} ({ag.role})
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <div className="flex items-center gap-2 py-2">
-                  <input
-                    type="checkbox"
-                    id="isLeadCheck"
-                    checked={assignAsLead}
-                    onChange={(e) => setAssignAsLead(e.target.checked)}
-                    className="size-4 accent-black rounded border-black/10 focus:ring-0"
-                  />
-                  <label htmlFor="isLeadCheck" className="text-xs font-medium cursor-pointer">
-                    Designate as Team Lead for this group
-                  </label>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={addAgentMutation.isPending}
-                  className="w-full bg-brand-primary text-brand-secondary py-2.5 rounded-lg text-xs font-semibold hover:opacity-90 active:scale-95 transition-all disabled:opacity-50 mt-2"
-                >
-                  {addAgentMutation.isPending ? "Assigning agent…" : "Add Team Member"}
-                </button>
-              </form>
-            </div>
-          </div>
-        )}
+        <AssignAgentDialog
+          isOpen={isAddAgentModalOpen}
+          onClose={() => setIsAddAgentModalOpen(false)}
+          eligibleAgents={eligibleAgents}
+          onSubmit={handleAssignAgentSubmit}
+          isLoading={assignAgentMutation.isPending}
+          error={addAgentError}
+          teamName={selectedTeam.name}
+        />
       </div>
     );
   }
@@ -538,7 +291,7 @@ export default function Teams() {
         {isAdmin && (
           <button
             onClick={() => setIsNewTeamModalOpen(true)}
-            className="bg-brand-primary text-brand-secondary py-3 px-4 rounded-lg text-xs font-semibold flex items-center gap-1.5 hover:opacity-90 active:scale-95 transition-all shrink-0 shadow-sm"
+            className="bg-brand-primary text-brand-secondary py-3 px-4 rounded-lg text-xs font-semibold flex items-center gap-1.5 hover:opacity-90 active:scale-95 transition-all shrink-0 shadow-sm cursor-pointer"
           >
             <Plus className="size-4" />
             + New team
@@ -639,13 +392,13 @@ export default function Teams() {
         </div>
       )}
 
-      {/* Create Team Modal */}
+      {/* Create Team Dialog */}
       {isNewTeamModalOpen && isAdmin && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-canvas border border-black/10 rounded-2xl w-full max-w-md p-6 shadow-xl relative animate-in fade-in zoom-in-95 duration-150">
             <button
               onClick={() => setIsNewTeamModalOpen(false)}
-              className="absolute top-4 right-4 text-muted-foreground hover:text-ink transition-colors"
+              className="absolute top-4 right-4 text-muted-foreground hover:text-ink transition-colors cursor-pointer"
             >
               <X className="size-4" />
             </button>
@@ -655,49 +408,18 @@ export default function Teams() {
               Establish a specialty group for managing incoming tickets.
             </p>
 
-            {newTeamError && (
+            {createTeamError && (
               <div className="mb-4 p-3 bg-danger/5 ring-1 ring-danger/15 rounded-lg text-xs text-danger flex items-start gap-2">
                 <ShieldAlert className="size-4 shrink-0 mt-0.5" />
-                <span>{newTeamError}</span>
+                <span>{createTeamError}</span>
               </div>
             )}
 
-            <form onSubmit={handleCreateTeam} className="space-y-4">
-              <label className="block text-left">
-                <span className="text-[9px] font-mono uppercase tracking-widest text-muted-foreground block mb-1">
-                  Team Name
-                </span>
-                <input
-                  type="text"
-                  required
-                  value={newTeamName}
-                  onChange={(e) => setNewTeamName(e.target.value)}
-                  placeholder="E.g. Technical Helpdesk"
-                  className="w-full bg-surface ring-1 ring-black/10 rounded-md px-3 py-2 text-xs focus:outline-none focus:ring-black/20 focus:bg-canvas transition-all"
-                />
-              </label>
-
-              <label className="block text-left">
-                <span className="text-[9px] font-mono uppercase tracking-widest text-muted-foreground block mb-1">
-                  Description
-                </span>
-                <textarea
-                  value={newTeamDescription}
-                  onChange={(e) => setNewTeamDescription(e.target.value)}
-                  placeholder="E.g. Triages technical bugs, backend errors, and infrastructure cases."
-                  rows={3}
-                  className="w-full bg-surface ring-1 ring-black/10 rounded-md px-3 py-2 text-xs focus:outline-none focus:ring-black/20 focus:bg-canvas transition-all resize-none"
-                />
-              </label>
-
-              <button
-                type="submit"
-                disabled={createTeamMutation.isPending}
-                className="w-full bg-brand-primary text-brand-secondary py-2.5 rounded-lg text-xs font-semibold hover:opacity-90 active:scale-95 transition-all disabled:opacity-50 mt-2"
-              >
-                {createTeamMutation.isPending ? "Creating team…" : "Create Team"}
-              </button>
-            </form>
+            <TeamForm
+              onSubmit={handleCreateTeamSubmit}
+              isLoading={createTeamMutation.isPending}
+              onCancel={() => setIsNewTeamModalOpen(false)}
+            />
           </div>
         </div>
       )}

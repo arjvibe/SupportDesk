@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
-import { useAuth } from "./hooks/useAuth";
-import SiteNav from "./components/SiteNav";
+import { useAuth } from "@/features/tenant/auth";
 import Login from "./pages/Login";
 import Inbox from "./pages/Inbox";
 import ClientPortal from "./pages/ClientPortal";
@@ -9,7 +8,10 @@ import Teams from "./pages/Teams";
 import Settings from "./pages/Settings";
 import SuperAdmin from "./pages/SuperAdmin";
 import Reports from "./pages/Reports";
-import { getActiveSubdomain, getApiBase } from "./utils/api";
+import { getActiveSubdomain } from "./utils/api";
+import { AppShell } from "@/components/layout/AppShell";
+import { apiClient } from "@/api/client";
+import { queryKeys } from "@/lib/queryKeys";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -84,7 +86,7 @@ function WorkspaceSelector() {
 
           <button
             type="submit"
-            className="w-full bg-ink text-canvas py-2.5 rounded-lg text-xs font-semibold hover:opacity-90 active:scale-[0.98] transition-all"
+            className="w-full bg-ink text-canvas py-2.5 rounded-lg text-xs font-semibold hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer"
           >
             Access Workspace
           </button>
@@ -105,12 +107,10 @@ function MainContent() {
 
   // Fetch workspace details (public branding name, colors)
   const { data: workspaceData } = useQuery<any>({
-    queryKey: ["public_workspace", activeSubdomain],
+    queryKey: queryKeys.auth.workspace(activeSubdomain),
     queryFn: async () => {
       if (!activeSubdomain) return null;
-      const res = await fetch(`${getApiBase()}/auth/workspace`, { credentials: "include" });
-      if (!res.ok) return null;
-      return res.json();
+      return apiClient.get<any>("/auth/workspace");
     },
     enabled: !!activeSubdomain,
   });
@@ -164,19 +164,16 @@ function MainContent() {
     return <Login />;
   }
 
-  // 2. Render Page Content
+  // 2. Render Page Content wrapped in the new AppShell
   return (
-    <div className="min-h-screen flex flex-col bg-canvas text-ink">
-      <SiteNav currentPage={currentPage} onPageChange={setCurrentPage} />
-      <main className="flex-1 overflow-auto">
-        {currentPage === "inbox" && (user.role === "admin" || user.role === "agent") && <Inbox />}
-        {currentPage === "settings" && user.role === "admin" && <Settings />}
-        {currentPage === "reports" && user.role === "admin" && <Reports />}
-        {currentPage === "superadmin" && user.role === "admin" && <SuperAdmin />}
-        {currentPage === "portal" && user.role === "client_user" && <ClientPortal />}
-        {currentPage === "teams" && (user.role === "admin" || user.role === "agent") && <Teams />}
-      </main>
-    </div>
+    <AppShell currentPage={currentPage} onPageChange={setCurrentPage}>
+      {currentPage === "inbox" && (user.role === "admin" || user.role === "agent") && <Inbox />}
+      {currentPage === "settings" && user.role === "admin" && <Settings />}
+      {currentPage === "reports" && user.role === "admin" && <Reports />}
+      {currentPage === "superadmin" && user.role === "admin" && <SuperAdmin />}
+      {currentPage === "portal" && user.role === "client_user" && <ClientPortal />}
+      {currentPage === "teams" && (user.role === "admin" || user.role === "agent") && <Teams />}
+    </AppShell>
   );
 }
 
